@@ -1,8 +1,22 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
+from pydantic import BaseModel
+from typing import Optional, List
 import sqlite3
 
 DB_PATH = "notes.db"
+
+class NoteCreate(BaseModel):
+    title: str
+    body: str
+    tags: Optional[List[str]] = []
+
+class NoteResponse(BaseModel):
+    id: int
+    title: str
+    body: str
+    tags: List[str]
+    created_at: str
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
