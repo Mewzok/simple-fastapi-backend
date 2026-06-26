@@ -25,6 +25,11 @@ class NoteResponse(BaseModel):
     tags: List[str]
     created_at: str
 
+class NoteUpdate(BaseModel):
+    title: Optional[str] = None
+    body: Optional[str] = None
+    tags: Optional[List[str]] = None
+
 
 def normalize_tags(tags: Optional[List[str]]) -> List[str]:
     return tags or []
@@ -70,7 +75,7 @@ async def lifespan(app: FastAPI):
                     title TEXT NOT NULL,
                     body TEXT NOT NULL,
                     tags TEXT NOT NULL DEFAULT '[]',
-                    created_at TEXT NOT NULL DEFAULT (DATE('now', 'localtime'))
+                    created_at TEXT NOT NULL DEFAULT (DATETIME('now', 'localtime'))
                 )
                 """
             )
@@ -91,12 +96,6 @@ app = FastAPI(lifespan=lifespan)
 @app.get("/")
 async def root():
     return {"message": "Hello World"}
-
-
-def handle_db_error(exc: Exception, message: str):
-    logger.exception(message)
-    raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Database error") from exc
-
 
 @app.post("/notes", response_model=NoteResponse)
 async def create_note(note: NoteCreate):
@@ -121,7 +120,8 @@ async def create_note(note: NoteCreate):
 
         return row_to_note(row)
     except sqlite3.Error as exc:
-        handle_db_error(exc, "Database error while creating note")
+        logger.exception(f"Database error while updating note {id}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Database error") from exc
     except HTTPException:
         raise
     except Exception as exc:
@@ -151,7 +151,8 @@ async def get_notes(tag: Optional[str] = None):
 
         return output
     except sqlite3.Error as exc:
-        handle_db_error(exc, "Database error while listing notes")
+        logger.exception("Database error while listing notes")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Database error") from exc
     except Exception as exc:
         logger.exception("Unexpected error while listing notes")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal server error") from exc
@@ -171,7 +172,8 @@ async def get_note(id: int):
 
         return row_to_note(row)
     except sqlite3.Error as exc:
-        handle_db_error(exc, f"Database error while fetching note {id}")
+        logger.exception(f"Database error while fetching note {id}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Database error") from exc
     except HTTPException:
         raise
     except Exception as exc:
@@ -180,25 +182,44 @@ async def get_note(id: int):
 
 
 @app.put("/notes/{id}", response_model=NoteResponse)
-async def update_note(id: int, note: NoteCreate):
+async def update_note(id: int, note: NoteUpdate):
     try:
         with get_db_connection() as conn:
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
-            cursor.execute(
-                "UPDATE notes SET title = ?, body = ?, tags = ? WHERE id = ?",
-                (note.title, note.body, tags_to_db_value(note.tags), id),
-            )
-            conn.commit()
+            query_parts = []
+            params = []
+
+            if note.title is not None:
+                query_parts.append("title = ?")
+                params.append(note.title)
+            if note.body is not None:
+                query_parts.append("body = ?")
+                params.append(note.body)
+            if note.tags is not None:
+                query_parts.append("tags = ?")
+                params.append(tags_to_db_value(note.tags))
+
+            query = "UPDATE notes SET " + ", ".join(query_parts) + " WHERE id = ?"
+            params.append(id)
+
+            if not query_parts:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No fields provided for update")
+
+            cursor.execute(query, params)
+
+            if cursor.rowcount == 0:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Note not found")
+            else:
+                conn.commit()
+
             cursor.execute("SELECT * FROM notes WHERE id = ?", (id,))
             row = cursor.fetchone()
 
-        if row is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Note not found")
-
         return row_to_note(row)
     except sqlite3.Error as exc:
-        handle_db_error(exc, f"Database error while updating note {id}")
+        logger.exception(f"Database error while updating note {id}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Database error") from exc
     except HTTPException:
         raise
     except Exception as exc:
@@ -224,7 +245,8 @@ async def delete_note(id: int):
 
         return note
     except sqlite3.Error as exc:
-        handle_db_error(exc, f"Database error while deleting note {id}")
+        logger.exception(f"Database error while deleting note {id}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Database error") from exc
     except HTTPException:
         raise
     except Exception as exc:
