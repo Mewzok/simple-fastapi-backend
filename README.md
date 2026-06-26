@@ -64,6 +64,18 @@ Then open `http://127.0.0.1:8000` in your browser.
 }
 ```
 
+### Example response
+
+```json
+{
+  "id": 1,
+  "title": "Shopping list",
+  "body": "Buy milk, eggs, and bread",
+  "tags": ["personal", "shopping"],
+  "created_at": "2026-06-26"
+}
+```
+
 ## Notes
 
 * The database is created automatically when the app starts.
