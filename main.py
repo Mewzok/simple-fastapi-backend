@@ -94,7 +94,7 @@ async def createNote(note: NoteCreate):
         print(f"Unexpected error: {exc}")
 
 @app.get("/notes", response_model=List[NoteResponse])
-async def getNotes(id: int):
+async def getNotes():
     output = []
 
     try:
@@ -121,7 +121,7 @@ async def getNotes(id: int):
         print(f"Unexpected error: {exc}")
 
 @app.get("/notes/{id}", response_model=NoteResponse)
-async def getNote(id):
+async def getNote(id: int):
     try:
         with sqlite3.connect(DB_PATH) as conn:
             conn.row_factory = sqlite3.Row
