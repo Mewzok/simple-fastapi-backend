@@ -94,8 +94,10 @@ async def createNote(note: NoteCreate):
         print(f"Unexpected error: {exc}")
 
 @app.get("/notes", response_model=List[NoteResponse])
-async def getNotes():
+async def getNotes(tag: Optional[str] = None):
     output = []
+    query = "SELECT * FROM notes"
+    params = []
 
     try:
         with sqlite3.connect(DB_PATH) as conn:
@@ -103,7 +105,12 @@ async def getNotes():
             cursor = conn.cursor()
 
             # retrieve all notes
-            cursor.execute("SELECT * FROM notes")
+            if tag:
+                query += " WHERE tags LIKE ?"
+                params.append(f"%{tag}%")
+
+            cursor.execute(query, params)
+
             rows = cursor.fetchall()
 
             for row in rows:
