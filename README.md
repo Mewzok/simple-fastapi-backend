@@ -9,7 +9,7 @@ This project provides a REST API for managing notes with the following fields:
 * `title` — note title
 * `body` — note content
 * `tags` — optional list of strings
-* `created_at` — date when the note was created
+* `created_at` — date and time when the note was created
 
 The app stores notes in a local SQLite database file named `notes.db`.
 
@@ -72,7 +72,7 @@ Then open `http://127.0.0.1:8000` in your browser.
   "title": "Shopping list",
   "body": "Buy milk, eggs, and bread",
   "tags": ["personal", "shopping"],
-  "created_at": "2026-06-26"
+  "created_at": "2026-06-26 03:52:20"
 }
 ```
 
