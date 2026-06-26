@@ -1,5 +1,5 @@
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from typing import Optional, List
 import sqlite3
@@ -86,6 +86,62 @@ async def createNote(note: NoteCreate):
 
         return ordered_data
     
+    except sqlite3.OperationalError as exc:
+        print(f"SQLite operational error: {exc}")
+    except sqlite3.Error as exc:
+        print(f"SQLite error: {exc}")
+    except Exception as exc:
+        print(f"Unexpected error: {exc}")
+
+@app.get("/notes", response_model=List[NoteResponse])
+async def getNotes(id: int):
+    output = []
+
+    try:
+        with sqlite3.connect(DB_PATH) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+
+            # retrieve all notes
+            cursor.execute("SELECT * FROM notes")
+            rows = cursor.fetchall()
+
+            for row in rows:
+                row_dict = dict(row)
+                row_dict["tags"] = stringToList(row_dict["tags"])
+                output.append(row_dict)
+
+        return output
+    
+    except sqlite3.OperationalError as exc:
+        print(f"SQLite operational error: {exc}")
+    except sqlite3.Error as exc:
+        print(f"SQLite error: {exc}")
+    except Exception as exc:
+        print(f"Unexpected error: {exc}")
+
+@app.get("/notes/{id}", response_model=NoteResponse)
+async def getNote(id):
+    try:
+        with sqlite3.connect(DB_PATH) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+
+            cursor.execute("SELECT * FROM notes WHERE id = ?",
+                           (id,))
+            row = cursor.fetchone()
+
+            # throw 404 error if id does not exist
+            if row is None:
+                raise HTTPException(status_code=404, detail="Note not found")
+
+            row_dict = dict(row)
+            row_dict["tags"] = stringToList(row_dict["tags"])
+            
+        return row_dict
+    
+    except HTTPException as exc:
+        raise exc
     except sqlite3.OperationalError as exc:
         print(f"SQLite operational error: {exc}")
     except sqlite3.Error as exc:
