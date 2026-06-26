@@ -79,12 +79,12 @@ async def createNote(note: NoteCreate):
             row = cursor.fetchone()
 
         # turn sqlite row into python dictionary
-        ordered_data = dict(row)
+        row_dict = dict(row)
 
         # convert tag string into list
-        ordered_data["tags"] = stringToList(ordered_data["tags"])
+        row_dict["tags"] = stringToList(row_dict["tags"])
 
-        return ordered_data
+        return row_dict
     
     except sqlite3.OperationalError as exc:
         print(f"SQLite operational error: {exc}")
@@ -140,6 +140,77 @@ async def getNote(id: int):
             
         return row_dict
     
+    except HTTPException as exc:
+        raise exc
+    except sqlite3.OperationalError as exc:
+        print(f"SQLite operational error: {exc}")
+    except sqlite3.Error as exc:
+        print(f"SQLite error: {exc}")
+    except Exception as exc:
+        print(f"Unexpected error: {exc}")
+
+@app.put("/notes/{id}", response_model=NoteResponse)
+async def updateNote(id: int, note: NoteCreate):
+    try:
+        with sqlite3.connect(DB_PATH) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+
+            # update row
+            cursor.execute("UPDATE notes SET title = ?, body = ?, tags = ? WHERE id = ?",
+                           (note.title, note.body, listToString(note.tags), id))
+            conn.commit()
+
+            # display updated row
+            cursor.execute("SELECT * FROM notes WHERE id = ?",
+                          (id,))
+            row = cursor.fetchone()
+
+            if row is None:
+                raise HTTPException(status_code=404, detail="Note not found")
+
+            row_dict = dict(row)
+
+            row_dict["tags"] = stringToList(row_dict["tags"])
+
+            return row_dict
+        
+    except HTTPException as exc:
+        raise exc
+    except sqlite3.OperationalError as exc:
+        print(f"SQLite operational error: {exc}")
+    except sqlite3.Error as exc:
+        print(f"SQLite error: {exc}")
+    except Exception as exc:
+        print(f"Unexpected error: {exc}")
+
+@app.delete("/notes/{id}", response_model=NoteResponse)
+async def deleteRow(id: int):
+    try:
+        with sqlite3.connect(DB_PATH) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+
+            # check if row exists
+            cursor.execute("SELECT * FROM notes WHERE id = ?",
+                           (id,))
+            row = cursor.fetchone()
+
+            if row is None:
+                raise HTTPException(status_code=404, detail="Note not found")
+            
+            row_dict = dict(row)
+
+            row_dict["tags"] = stringToList(row_dict["tags"])
+
+            # delete row
+            cursor.execute("DELETE FROM notes WHERE id = ?",
+                           (id,))
+            
+            conn.commit()
+
+            return row_dict
+
     except HTTPException as exc:
         raise exc
     except sqlite3.OperationalError as exc:
